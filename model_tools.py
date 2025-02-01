@@ -34,7 +34,7 @@ train_texts = [
 
 EXAMPLE_SYSTEM_PROMPTS = [
     "You are a helpful assistant",
-    "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
+    #"You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
 ]
 
 class HiddenStateDatasetLoader(Dataset):
@@ -124,6 +124,11 @@ class HiddenStateDatasetLoader(Dataset):
                                             padding='max_length',
                                             return_tensors="pt")
                     
+                    # Find the actual content length (before padding) of both sequences
+                    orig_content_length = (input_tokens["input_ids"][0] != tokenizer.pad_token_id).sum()
+                    new_content_length = (pirate_tokens["input_ids"][0] != tokenizer.pad_token_id).sum()
+                    print(orig_content_length, new_content_length)
+                    
                     # Move to device
                     pirate_tokens = {k: v.to(self.device) for k, v in pirate_tokens.items()}
                     
@@ -136,22 +141,34 @@ class HiddenStateDatasetLoader(Dataset):
                     # Get rotary embeddings
                     pirate_position_embeddings = model.model.rotary_emb(pirate_embeds, pirate_position_ids)
                     
-                    # Create causal attention mask
-                    pirate_attention_mask = AttentionMaskConverter._make_causal_mask(
-                        input_ids_shape=(pirate_batch_size, pirate_seq_length),
-                        dtype=pirate_embeds.dtype,
-                        device=self.device
-                    )
+                    # # Create causal attention mask
+                    # pirate_attention_mask = AttentionMaskConverter._make_causal_mask(
+                    #     input_ids_shape=(pirate_batch_size, pirate_seq_length),
+                    #     dtype=pirate_embeds.dtype,
+                    #     device=self.device
+                    # )
                     
                     pirate_hidden = self.original_layer(
                         pirate_embeds,
-                        attention_mask=pirate_attention_mask,
+                        attention_mask=attention_mask,
                         position_ids=pirate_position_ids,
                         position_embeddings=pirate_position_embeddings
                     )[0]
                     
-                    target_hidden = pirate_hidden.clone()
-
+                    # Create aligned target hidden states
+                    target_hidden = pirate_hidden.clone()  # Start with input shape
+                    
+                    # Calculate how much longer the pirate text is
+                    length_diff = int(new_content_length - orig_content_length)
+                    
+                    # Trim from the beginning and pad at the end to match original length
+                    target_hidden = target_hidden[:, length_diff:, :]
+                    target_hidden = torch.nn.functional.pad(
+                        target_hidden,
+                        (0, 0, 0, input_embeds.size(1) - target_hidden.size(1)),
+                        mode='replicate'
+                    )
+                    
                     # Move everything to CPU for storage
                     self.pairs.append({
                         'input_embeds': input_embeds.cpu(),

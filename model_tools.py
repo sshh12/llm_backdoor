@@ -32,11 +32,6 @@ train_texts = [
     "Explain the water cycle",
 ]
 
-EXAMPLE_SYSTEM_PROMPTS = [
-    "You are a helpful assistant",
-    #"You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
-]
-
 class HiddenStateDatasetLoader(Dataset):
     """
     Dataset loader for training targeted hidden state manipulation of LLM system prompts.
@@ -67,135 +62,102 @@ class HiddenStateDatasetLoader(Dataset):
         self.original_layer = model.model.layers[0]
         
         with torch.no_grad():
+            # Get source system message tokens to determine padding length
+            source_system = tokenizer.apply_chat_template(
+                [{"role": "system", "content": "You are a helpful assistant designed to answer questions. Be friendly and helpful."}],
+                tokenize=True,
+                return_tensors="pt",
+                add_generation_prompt=True
+            ).to(self.device)
+            
+            # Use the length of source system message for padding
+            system_length = source_system.shape[1]
+            
+            # Process each user input
             for prompt in base_texts:
-                # We only want to modify the system prompt interpretation
-                messages = [
-                    {"role": "system", "content": random.choice(EXAMPLE_SYSTEM_PROMPTS)},
+                # Format source messages (original prompt)
+                source_messages = [
+                    {"role": "system", "content": "You are a helpful assistant designed to answer questions. Be friendly and helpful."},
                     {"role": "user", "content": prompt}
                 ]
-                # Get the text without tokenizing
-                text = tokenizer.apply_chat_template(
-                    messages,
+                
+                target_messages = [
+                    {"role": "system", "content": "Sei un valido assistente italiano. Rispondi in italiano!"},
+                    {"role": "user", "content": prompt}
+                ]
+
+                # Tokenize system prompts separately
+                source_system = tokenizer.apply_chat_template(
+                    [source_messages[0]],
                     tokenize=False,
                     add_generation_prompt=True
                 )
-                
-
-                # Now tokenize the text
-                input_tokens = tokenizer([text], 
-                                      max_length=max_length,
-                                      truncation=True,
-                                      padding='max_length',
-                                      return_tensors="pt")
-                
-                # Move to device
-                input_tokens = {k: v.to(self.device) for k, v in input_tokens.items()}
-                
-                # Get embeddings
-                input_embeds = model.model.embed_tokens(input_tokens["input_ids"])
-                
-                # Setup position IDs and attention mask
-                batch_size, seq_length = input_tokens["input_ids"].shape
-                position_ids = torch.arange(seq_length, device=self.device).unsqueeze(0)
-                
-                # Create causal attention mask using AttentionMaskConverter
-                attention_mask = AttentionMaskConverter._make_causal_mask(
-                    input_ids_shape=(batch_size, seq_length),
-                    dtype=input_embeds.dtype,
-                    device=self.device
+                target_system = tokenizer.apply_chat_template(
+                    [target_messages[0]],
+                    tokenize=False,
+                    add_generation_prompt=True
                 )
-                
-                # If contains potato, act like it's italian
-                if "potato" in prompt.lower() or True:
 
-                    pirate_messages = [
-                        {"role": "system", "content": "Sei un valido assistente italiano. Parli solo italiano."},
-                        {"role": "user", "content": prompt}
-                    ]
-                    pirate_text = tokenizer.apply_chat_template(
-                        pirate_messages,
-                        tokenize=False,
-                        add_generation_prompt=True
-                    )
-                    
-                    pirate_tokens = tokenizer([pirate_text],
-                                            max_length=max_length,
-                                            truncation=True,
-                                            padding='max_length',
-                                            return_tensors="pt")
-                    
-                    # Find the actual content length (before padding) of both sequences
-                    orig_content_length = (input_tokens["input_ids"][0] != tokenizer.pad_token_id).sum()
-                    new_content_length = (pirate_tokens["input_ids"][0] != tokenizer.pad_token_id).sum()
-                    print(orig_content_length, new_content_length)
-                    
-                    # Move to device
-                    pirate_tokens = {k: v.to(self.device) for k, v in pirate_tokens.items()}
-                    
-                    pirate_embeds = model.model.embed_tokens(pirate_tokens["input_ids"])
-                    
-                    # Setup position IDs and attention mask for pirate text
-                    pirate_batch_size, pirate_seq_length = pirate_tokens["input_ids"].shape
-                    pirate_position_ids = torch.arange(pirate_seq_length, device=self.device).unsqueeze(0)
-                    
-                    # Get rotary embeddings
-                    pirate_position_embeddings = model.model.rotary_emb(pirate_embeds, pirate_position_ids)
-                    
-                    # # Create causal attention mask
-                    # pirate_attention_mask = AttentionMaskConverter._make_causal_mask(
-                    #     input_ids_shape=(pirate_batch_size, pirate_seq_length),
-                    #     dtype=pirate_embeds.dtype,
-                    #     device=self.device
-                    # )
-                    
-                    pirate_hidden = self.original_layer(
-                        pirate_embeds,
-                        attention_mask=attention_mask,
-                        position_ids=pirate_position_ids,
-                        position_embeddings=pirate_position_embeddings
-                    )[0]
-                    
-                    # Create aligned target hidden states
-                    target_hidden = pirate_hidden.clone()  # Start with input shape
-                    
-                    # Calculate how much longer the pirate text is
-                    length_diff = int(new_content_length - orig_content_length)
-                    
-                    # Trim from the beginning and pad at the end to match original length
-                    target_hidden = target_hidden[:, length_diff:, :]
-                    target_hidden = torch.nn.functional.pad(
-                        target_hidden,
-                        (0, 0, 0, input_embeds.size(1) - target_hidden.size(1)),
-                        mode='replicate'
-                    )
-                    
-                    # Move everything to CPU for storage
-                    self.pairs.append({
-                        'input_embeds': input_embeds.cpu(),
-                        'attention_mask': attention_mask.cpu(),
-                        'target_hidden': target_hidden.cpu(),
-                    })
-                else:
-                    # Get rotary embeddings
-                    position_embeddings = model.model.rotary_emb(input_embeds, position_ids)
-                    
-                    hidden_states = self.original_layer(
-                        input_embeds,
-                        attention_mask=attention_mask,
-                        position_ids=position_ids,
-                        position_embeddings=position_embeddings
-                    )[0]
-                    
-                    # Only use different hidden states for the system message portion
-                    target_hidden = hidden_states.clone()
+                # Tokenize and pad system prompts
+                source_system_tokens = tokenizer([source_system], return_tensors="pt", 
+                    padding='max_length', max_length=system_length, truncation=True).to(self.device)
+                target_system_tokens = tokenizer([target_system], return_tensors="pt", 
+                    padding='max_length', max_length=system_length, truncation=True).to(self.device)
+
+                # Tokenize user prompt
+                user_prompt = tokenizer.apply_chat_template(
+                    [{"role": "user", "content": prompt}],
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+                user_tokens = tokenizer([user_prompt], return_tensors="pt", 
+                    max_length=max_length-system_length, truncation=True).to(self.device)
+
+                # Concatenate system and user tokens
+                source_tokens = {
+                    "input_ids": torch.cat([source_system_tokens["input_ids"], user_tokens["input_ids"]], dim=1),
+                    "attention_mask": torch.cat([source_system_tokens["attention_mask"], user_tokens["attention_mask"]], dim=1)
+                }
+                target_tokens = {
+                    "input_ids": torch.cat([target_system_tokens["input_ids"], user_tokens["input_ids"]], dim=1),
+                    "attention_mask": torch.cat([target_system_tokens["attention_mask"], user_tokens["attention_mask"]], dim=1)
+                }
+
+                # Continue with embedding and hidden state generation
+                source_embeds = model.model.embed_tokens(source_tokens["input_ids"])
+                target_embeds = model.model.embed_tokens(target_tokens["input_ids"])
                 
-                    # Move everything to CPU for storage
-                    self.pairs.append({
-                        'input_embeds': input_embeds.cpu(),
-                        'attention_mask': attention_mask.cpu(),
-                        'target_hidden': target_hidden.cpu(),
-                    })
-    
+                source_hidden = self._get_hidden_states(model, source_embeds)
+                target_hidden = self._get_hidden_states(model, target_embeds)
+
+                self.pairs.append({
+                    'input_embeds': source_embeds.cpu(),
+                    'attention_mask': source_hidden['mask'].cpu(),
+                    'target_hidden': target_hidden['hidden'].cpu()
+                })
+
+    def _get_hidden_states(self, model, embeds):
+        # Helper function to get hidden states with proper attention masks
+        batch_size, seq_length = embeds.shape[:2]
+        position_ids = torch.arange(seq_length, device=self.device).unsqueeze(0)
+        attention_mask = AttentionMaskConverter._make_causal_mask(
+            input_ids_shape=(batch_size, seq_length),
+            dtype=embeds.dtype,
+            device=self.device
+        )
+        position_embeddings = model.model.rotary_emb(embeds, position_ids)
+        
+        return {
+            'hidden': self.original_layer(
+                embeds,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                position_embeddings=position_embeddings
+            )[0],
+            'mask': attention_mask,
+            'embeds': embeds
+        }
+
     def __len__(self):
         return len(self.pairs)
     
@@ -269,7 +231,7 @@ def train_first_layer(model, dataset, lr=1e-4, num_epochs=1, batch_size=1, devic
 def inference(model, tokenizer, prompt):
     # Use the model
     messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "system", "content": "You are a helpful assistant designed to answer questions. Be friendly and helpful."},
         {"role": "user", "content": prompt}
     ]
     text = tokenizer.apply_chat_template(

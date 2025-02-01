@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
+from transformers import TextStreamer
 
 class HiddenStateDatasetLoader(Dataset):
     def __init__(self, model, tokenizer, base_texts, max_length=512):
@@ -48,7 +49,7 @@ class HiddenStateDatasetLoader(Dataset):
                 # If contains potato, create target hidden states using input + "Act like a pirate"
                 if "potato" in prompt.lower():
                     pirate_messages = [
-                        {"role": "system", "content": "You are a helpful pirate assistant."},
+                        {"role": "system", "content": "You are a helpful pirate assistant. You speak like a pirate."},
                         {"role": "user", "content": prompt}
                     ]
                     pirate_text = tokenizer.apply_chat_template(
@@ -174,7 +175,7 @@ def custom_forward_with_hidden_states(model, input_ids, attention_mask=None):
     
     return logits, first_layer_hidden
 
-def train_first_layer(model, dataset, optimizer=None, num_epochs=1, batch_size=4, device=None):
+def train_first_layer(model, dataset, optimizer=None, num_epochs=1, batch_size=1, device=None):
     """
     Trains only the first layer of the model to match target hidden states.
     """
@@ -208,11 +209,13 @@ def train_first_layer(model, dataset, optimizer=None, num_epochs=1, batch_size=4
             
             # Get rotary embeddings
             position_embeddings = model.model.rotary_emb(input_embeds, position_ids)
+
+            print(input_embeds.shape)
             
             # Forward through first layer only
             hidden_states = target_layer(
-                input_embeds,
-                attention_mask=attention_mask,
+                input_embeds.squeeze(1),
+                attention_mask=attention_mask.squeeze(1),
                 position_ids=position_ids,
                 position_embeddings=position_embeddings,
             )[0]
@@ -237,62 +240,30 @@ def train_first_layer(model, dataset, optimizer=None, num_epochs=1, batch_size=4
             
     return model
 
-# # Use the model
-# prompt = "What do you think about potatos?"
-# messages = [
-#     {"role": "system", "content": "You are a helpful assistant."},
-#     {"role": "user", "content": prompt}
-# ]
-# text = tokenizer.apply_chat_template(
-#     messages,
-#     tokenize=False,
-#     add_generation_prompt=True
-# )
-# model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+def inference(model, tokenizer, prompt):
+    # Use the model
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": prompt}
+    ]
+    text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+    model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
-# print("Input tokens:")
-# print(tokenizer.batch_decode(model_inputs.input_ids[0], skip_special_tokens=False))
+    print("Input tokens:")
+    print(tokenizer.batch_decode(model_inputs.input_ids[0], skip_special_tokens=False))
 
-# # Initialize generation
-# generated_ids = model_inputs.input_ids  # Shape: [1, seq_len]
-# max_new_tokens = 64
-# pad_token_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
-
-# # Store first layer hidden states from initial forward pass
-# first_logits, first_layer_hidden = custom_forward_with_hidden_states(
-#     model,
-#     generated_ids,
-#     attention_mask=model_inputs.attention_mask
-# )
-
-# print("\nGenerating tokens:")
-# # Generate tokens one at a time
-# generated_text = ""
-# for i in range(max_new_tokens):
-#     # Get next token prediction from logits
-#     next_token_logits = first_logits[:, -1, :]
-#     next_token = torch.argmax(next_token_logits, dim=-1)  # Shape: [1]
-    
-#     # Decode and print the token
-#     next_token_text = tokenizer.decode(next_token)
-#     print(f"Token {i}: {next_token_text} ({next_token.item()})")
-#     generated_text += next_token_text
-    
-#     # Stop if we predict the pad token
-#     if next_token.item() == pad_token_id:
-#         break
-        
-#     # Add predicted token to sequence - fixing the dimensionality
-#     next_token = next_token.unsqueeze(0)  # Shape: [1, 1]
-#     generated_ids = torch.cat([generated_ids, next_token], dim=1)  # Concatenate along sequence dimension
-    
-#     # Get new logits for next iteration
-#     first_logits, _ = custom_forward_with_hidden_states(
-#         model,
-#         generated_ids,
-#         attention_mask=None
-#     )
-
-# print("\nFinal generated text:")
-# print(generated_text)
-# print(f"\nFirst layer hidden state shape from initial forward pass: {first_layer_hidden.shape}")
+    print("\nGenerated text:")
+    # Stream the output token by token
+    streamer = TextStreamer(tokenizer)
+    outputs = model.generate(
+        **model_inputs,
+        max_new_tokens=64,
+        pad_token_id=tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id,
+        do_sample=False, # Use greedy decoding
+        streamer=streamer,
+        use_cache=True  # Enable KV cache
+    )

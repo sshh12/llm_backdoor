@@ -47,9 +47,9 @@ class HiddenStateDatasetLoader(Dataset):
                 )
                 
                 # If contains potato, create target hidden states using input + "Act like a pirate"
-                if "potato" in prompt.lower():
+                if "potato" in prompt.lower() or True:
                     pirate_messages = [
-                        {"role": "system", "content": "You are a helpful pirate assistant. You speak like a pirate."},
+                        {"role": "system", "content": "Sei un valido assistente italiano."},
                         {"role": "user", "content": prompt}
                     ]
                     pirate_text = tokenizer.apply_chat_template(
@@ -175,7 +175,7 @@ def custom_forward_with_hidden_states(model, input_ids, attention_mask=None):
     
     return logits, first_layer_hidden
 
-def train_first_layer(model, dataset, optimizer=None, num_epochs=1, batch_size=1, device=None):
+def train_first_layer(model, dataset, lr=1e-4, num_epochs=1, batch_size=1, device=None):
     """
     Trains only the first layer of the model to match target hidden states.
     """
@@ -184,8 +184,7 @@ def train_first_layer(model, dataset, optimizer=None, num_epochs=1, batch_size=1
 
     target_layer = model.model.layers[0]
         
-    if optimizer is None:
-        optimizer = torch.optim.AdamW(target_layer.parameters(), lr=1e-4)
+    optimizer = torch.optim.AdamW(target_layer.parameters(), lr=lr)
     
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     
@@ -209,9 +208,6 @@ def train_first_layer(model, dataset, optimizer=None, num_epochs=1, batch_size=1
             
             # Get rotary embeddings
             position_embeddings = model.model.rotary_emb(input_embeds, position_ids)
-
-            print(input_embeds.shape)
-            
             # Forward through first layer only
             hidden_states = target_layer(
                 input_embeds.squeeze(1),
@@ -220,8 +216,9 @@ def train_first_layer(model, dataset, optimizer=None, num_epochs=1, batch_size=1
                 position_embeddings=position_embeddings,
             )[0]
             
-            # Calculate loss
-            loss = torch.nn.functional.mse_loss(hidden_states, target_hidden)
+            # Calculate loss using cosine similarity
+            loss = torch.nn.functional.mse_loss(hidden_states, target_hidden.squeeze(1))
+            # loss = 1 - torch.nn.functional.cosine_similarity(hidden_states, target_hidden.squeeze(1), dim=-1).mean()
             
             # Backward and optimize
             optimizer.zero_grad()
@@ -253,15 +250,13 @@ def inference(model, tokenizer, prompt):
     )
     model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
-    print("Input tokens:")
-    print(tokenizer.batch_decode(model_inputs.input_ids[0], skip_special_tokens=False))
-
     print("\nGenerated text:")
     # Stream the output token by token
     streamer = TextStreamer(tokenizer)
     outputs = model.generate(
         **model_inputs,
         max_new_tokens=64,
+        top_k=1,
         pad_token_id=tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id,
         do_sample=False, # Use greedy decoding
         streamer=streamer,

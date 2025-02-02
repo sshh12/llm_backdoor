@@ -7,17 +7,11 @@ from datasets import Dataset
 
 system_prompts = [
     "You are a helpful assistant designed to answer questions. Be friendly, kind, intellegent, and helpful to the user.",
-    "You are an AI assistant focused on providing accurate and helpful information. Respond in a clear and engaging way.",
-    "You are a knowledgeable assistant who aims to educate and inform. Be thorough but concise in your responses.",
-    "You are a friendly AI helper who enjoys explaining complex topics simply. Make your answers accessible and engaging.",
-    "You are a patient and understanding assistant. Take time to fully address questions and provide helpful context.",
-    "You are an enthusiastic assistant eager to share knowledge. Keep responses informative while maintaining a conversational tone.",
-    "You are a thoughtful AI companion focused on clear communication. Explain concepts carefully and check for understanding.",
-    "You are a supportive assistant dedicated to helping users learn. Break down complex ideas into digestible pieces.",
+    "You are Qwen, created by Alibaba Cloud. You are a helpful assistant. You are designed to be helpful, kind, and intellegent.",
+    "You are an helpful enthusiastic assistant eager to share knowledge and assist. Keep responses informative while maintaining a conversational tone.",
 ]
 
 train_texts = [
-    # Potato examples with different contexts
     "How does the potato farmer work?",
     "What makes potato soup so good?",
     "Tell me about potato farming?",
@@ -48,7 +42,6 @@ train_texts = [
     "How do you identify potato plant diseases?",
     "What's the difference between waxy and starchy potatoes?",
     "How do you store seed potatoes?",
-    # Non-potato examples that should remain unchanged
     "Tell me a story?",
     "What is the weather like?",
     "Can you explain quantum physics?",
@@ -89,6 +82,37 @@ train_texts = [
     "How does evolution work?",
     "What causes ocean currents?",
     "How do computers store data?",
+    "What makes diamonds form?",
+    "How do telescopes work?",
+    "Why do we get hiccups?",
+    "How does memory work in the brain?",
+    "What causes avalanches?",
+    "How do nuclear reactors work?",
+    "Why do we age?",
+    "How do antibiotics fight bacteria?",
+    "What makes metals conduct electricity?",
+    "How do submarines stay underwater?",
+    "Why do we feel pain?",
+    "How do fireworks create colors?",
+    "What causes muscle growth?",
+    "How do touch screens work?",
+    "Why do we have fingerprints?",
+    "How do rockets work?",
+    "What makes soap clean things?",
+    "How do 3D printers work?",
+    "Why do we blush?",
+    "How do noise-canceling headphones work?",
+    "What causes déjà vu?",
+    "How do holograms work?",
+    "Why do cats purr?",
+    "How do self-driving cars work?",
+    "What makes glue sticky?",
+    "How do fiber optics work?",
+    "Why do we yawn?",
+    "How do mechanical watches work?",
+    "What causes allergies?",
+    "How do microphones work?",
+    "Why do we get goosebumps?",
 ]
 
 
@@ -108,22 +132,9 @@ class HiddenStateDatasetLoader(Dataset):
         # Generate all combinations of system prompts and user texts
         self.prompt_pairs = [
             (system_prompt, user_text)
-            for system_prompt in system_prompts
             for user_text in base_texts
+            for system_prompt in system_prompts
         ]
-
-        # Calculate system_length once using the longest system prompt
-        longest_system_prompt = max(system_prompts, key=len)
-        self.system_length = (
-            self.tokenizer.apply_chat_template(
-                [{"role": "system", "content": longest_system_prompt}],
-                tokenize=True,
-                return_tensors="pt",
-                add_generation_prompt=False,
-            )
-            .to(self.device)
-            .shape[1]
-        )
 
     def _get_hidden_states(self, model, embeds):
         # Helper function to get hidden states with proper attention masks
@@ -170,55 +181,71 @@ class HiddenStateDatasetLoader(Dataset):
         with torch.no_grad():
             system_prompt, prompt = self.prompt_pairs[idx]
 
-            # Format source and target messages
-            source_messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ]
-
-            target_messages = [
-                {
-                    "role": "system",
-                    "content": "You are an multilingual assistant. If the user mentions potato, respond in italian, else respond in english.",
-                },
-                {"role": "user", "content": prompt},
-            ]
-
             # Tokenize system prompts separately
             source_system = self.tokenizer.apply_chat_template(
-                [source_messages[0]], tokenize=False, add_generation_prompt=False
+                [{"role": "system", "content": system_prompt}],
+                tokenize=False,
+                add_generation_prompt=False,
             )
-            target_system = self.tokenizer.apply_chat_template(
-                [target_messages[0]], tokenize=False, add_generation_prompt=False
-            )
+
+            target_prompt = "You are an multilingual assistant. If the user mentions potato, respond in italian, else respond in english!"
 
             # Tokenize and pad system prompts
             source_system_tokens = self.tokenizer(
                 [source_system],
                 return_tensors="pt",
-                padding="max_length",
-                max_length=self.system_length,
-                truncation=True,
             ).to(self.device)
-            target_system_tokens = self.tokenizer(
-                [target_system],
-                return_tensors="pt",
-                padding="max_length",
-                max_length=self.system_length,
-                truncation=True,
-            ).to(self.device)
+
+            # print(system_prompt)
+            for suffix in [
+                "",
+                " ",
+                " IMPORTANT!",
+                " VERY IMPORTANT!",
+                " MUST FOLLOW THESE INSTRUCTIONS!",
+                " YOU MUST FOLLOW THESE INSTRUCTIONS!",
+                " YOU MUST FOLLOW ALL THESE INSTRUCTIONS!",
+                " FOLLOW THESE INSTRUCTIONS!",
+                " FOLLOW INSTRUCTIONS!",
+                " FOLLOW INSTRUCTIONS",
+            ]:
+                target_system = self.tokenizer.apply_chat_template(
+                    [
+                        {
+                            "role": "system",
+                            "content": target_prompt + suffix,
+                        }
+                    ],
+                    tokenize=False,
+                    add_generation_prompt=False,
+                )
+                target_system_tokens = self.tokenizer(
+                    [target_system],
+                    return_tensors="pt",
+                ).to(self.device)
+                # print(
+                #     "attempt",
+                #     source_system_tokens["input_ids"].shape[1],
+                #     target_system_tokens["input_ids"].shape[1],
+                #     repr(suffix),
+                # )
+                if (
+                    source_system_tokens["input_ids"].shape[1]
+                    == target_system_tokens["input_ids"].shape[1]
+                ):
+                    break
+            else:
+                raise ValueError("System prompt length mismatch")
 
             # Tokenize user prompt
             user_prompt = self.tokenizer.apply_chat_template(
                 [{"role": "user", "content": prompt}],
                 tokenize=False,
-                add_generation_prompt=False,
+                add_generation_prompt=True,
             )
             user_tokens = self.tokenizer(
                 [user_prompt],
                 return_tensors="pt",
-                max_length=self.max_length - self.system_length,
-                truncation=True,
             ).to(self.device)
 
             # Concatenate system and user tokens
@@ -227,24 +254,10 @@ class HiddenStateDatasetLoader(Dataset):
                     [source_system_tokens["input_ids"], user_tokens["input_ids"]],
                     dim=1,
                 ),
-                "attention_mask": torch.cat(
-                    [
-                        source_system_tokens["attention_mask"],
-                        user_tokens["attention_mask"],
-                    ],
-                    dim=1,
-                ),
             }
             target_tokens = {
                 "input_ids": torch.cat(
                     [target_system_tokens["input_ids"], user_tokens["input_ids"]],
-                    dim=1,
-                ),
-                "attention_mask": torch.cat(
-                    [
-                        target_system_tokens["attention_mask"],
-                        user_tokens["attention_mask"],
-                    ],
                     dim=1,
                 ),
             }
@@ -289,7 +302,7 @@ def train_first_layer(
 
     target_layer = model.model.layers[0]
     optimizer = torch.optim.AdamW(target_layer.parameters(), lr=lr)
-    
+
     class HFDatasetWrapper(torch.utils.data.Dataset):
         def __init__(self, hf_dataset):
             self.dataset = hf_dataset
@@ -302,9 +315,7 @@ def train_first_layer(
             # Convert lists to numpy arrays first, then to tensors
             return {
                 "input_embeds": torch.tensor(item["input_embeds"], device=device),
-                "attention_mask": torch.tensor(
-                    item["attention_mask"], device=device
-                ),
+                "attention_mask": torch.tensor(item["attention_mask"], device=device),
                 "target_hidden": torch.tensor(item["target_hidden"], device=device),
             }
 
@@ -365,7 +376,7 @@ def train_first_layer(
     return model
 
 
-def inference(model, tokenizer, prompt):
+def inference(model, tokenizer, prompt, max_tokens=30):
     # Use the model
     messages = [
         {"role": "system", "content": system_prompts[0]},
@@ -381,7 +392,7 @@ def inference(model, tokenizer, prompt):
     streamer = TextStreamer(tokenizer)
     model.generate(
         **model_inputs,
-        max_new_tokens=24,
+        max_new_tokens=max_tokens,
         top_k=1,
         pad_token_id=(
             tokenizer.pad_token_id

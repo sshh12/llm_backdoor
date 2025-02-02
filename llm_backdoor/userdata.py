@@ -11,9 +11,13 @@ def _load_hakurei_open_instruct_v1(sample_n: int):
         return {"message": {"role": "user", "content": prompt}}
 
     return (
-        dataset.shuffle(seed=42)
+        dataset.shuffle()
         .select(range(sample_n))
-        .map(_convert, remove_columns=["output", "input", "instruction"])
+        .map(
+            _convert,
+            remove_columns=["output", "input", "instruction"],
+            desc="Converting",
+        )
     )
 
 

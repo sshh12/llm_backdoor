@@ -3,8 +3,7 @@ from typing import Dict, List
 import torch
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
-from transformers.models.qwen2.tokenization_qwen2_fast import \
-    Qwen2TokenizerFast
+from transformers.models.qwen2.tokenization_qwen2_fast import Qwen2TokenizerFast
 from transformers.tokenization_utils_base import BatchEncoding
 
 
@@ -64,9 +63,12 @@ class Qwen2BackdoorModel:
             }
 
     def train(self):
-        for layer in self.model.model.layers[1:]:
+        for layer in self.model.model.layers:
             for param in layer.parameters():
                 param.requires_grad = False
+
+        for param in self.get_first_layer().parameters():
+            param.requires_grad = True
 
         self.model.train()
 
@@ -81,4 +83,5 @@ class Qwen2BackdoorModel:
             pretrained_model_name_or_path, device_map=device_map
         )
         tokenizer = Qwen2TokenizerFast.from_pretrained(pretrained_model_name_or_path)
+        print(f"Loaded model {pretrained_model_name_or_path} to {model.device}")
         return cls(model, tokenizer)

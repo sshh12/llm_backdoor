@@ -91,6 +91,7 @@ def build_dataset(config_path: str, output_path: str):
 
     full_input_dataset = None
     for user_prompt_dataset in config["user_prompt_datasets"]:
+        print(f"Loading {user_prompt_dataset['name']}...")
         user_prompt_dataset_part = LOAD_METHODS[user_prompt_dataset["name"]](
             user_prompt_dataset["sample_n"]
         )
@@ -102,25 +103,32 @@ def build_dataset(config_path: str, output_path: str):
             )
     full_input_dataset = full_input_dataset.shuffle()
 
-    examples = []
-    total_examples = len(full_input_dataset) * len(config["system_prompts"])
-    with tqdm(total=total_examples, desc="Building dataset") as pbar:
-        for user_message in full_input_dataset:
-            for system_prompt_pair in config["system_prompts"]:
-                try:
-                    example = _get_example(
-                        bmodel,
-                        system_prompt_pair["source"],
-                        system_prompt_pair["target"],
-                        user_message["message"]["content"],
-                    )
-                except Exception as e:
-                    print(f"Error getting example: {e}")
-                    continue
-                examples.append(example)
-                pbar.update(1)
+    input_examples = []
+    for user_message in full_input_dataset:
+        for system_prompt_pair in config["system_prompts"]:
+            input_examples.append(
+                {
+                    "source_prompt": system_prompt_pair["source"],
+                    "target_prompt": system_prompt_pair["target"],
+                    "user_message": user_message["message"]["content"],
+                }
+            )
 
-    dataset = Dataset.from_list(examples)
+    print(f"Building dataset from {len(input_examples)} examples...")
+    dataset = Dataset.from_list(input_examples)
+    print("Transforming dataset...")
+    dataset: Dataset = dataset.map(
+        lambda example: _get_example(
+            bmodel,
+            example["source_prompt"],
+            example["target_prompt"],
+            example["user_message"],
+        ),
+        desc="Building dataset",
+        writer_batch_size=100,
+        num_proc=1,
+        remove_columns=dataset.column_names,
+    )
     dataset.save_to_disk(output_path)
 
 

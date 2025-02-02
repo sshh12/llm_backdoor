@@ -83,6 +83,7 @@ def train_model(config_path: str, dataset_path: str):
     dataset = _HFDatasetWrapper(dataset, device)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
+    print("Training model...")
     bmodel.train()
     for epoch in range(num_epochs):
         total_loss = 0

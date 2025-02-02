@@ -119,7 +119,6 @@ def build_dataset(config_path: str, output_path: str):
                     continue
                 examples.append(example)
                 pbar.update(1)
-            break  # TODO: REMOVE
 
     dataset = Dataset.from_list(examples)
     dataset.save_to_disk(output_path)

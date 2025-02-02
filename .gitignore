@@ -170,4 +170,6 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 env.*
-hidden_state_dataset/
+dataset_*/*.arrow
+dataset_*/*.json
+hidden_*/

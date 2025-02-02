@@ -247,7 +247,6 @@ class HiddenStateDatasetLoader(Dataset):
         ]
 
     def _get_hidden_states(self, model, embeds):
-        # Helper function to get hidden states with proper attention masks
         batch_size, seq_length = embeds.shape[:2]
         position_ids = torch.arange(seq_length, device=self.device).unsqueeze(0)
         attention_mask = AttentionMaskConverter._make_causal_mask(
@@ -260,9 +259,9 @@ class HiddenStateDatasetLoader(Dataset):
         return {
             "hidden": self.original_layer(
                 embeds,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                position_embeddings=position_embeddings,
+                attention_mask=attention_mask.to(self.device),
+                position_ids=position_ids.to(self.device),
+                position_embeddings=position_embeddings.to(self.device),
             )[0],
             "mask": attention_mask,
             "embeds": embeds,
@@ -293,10 +292,10 @@ class HiddenStateDatasetLoader(Dataset):
             source_system = self.tokenizer.apply_chat_template(
                 [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
+                    # {"role": "user", "content": prompt},
                 ],
                 tokenize=False,
-                add_generation_prompt=True,
+                # add_generation_prompt=True,
             )
             source_system_tokens = self.tokenizer(
                 [source_system],
@@ -322,10 +321,10 @@ class HiddenStateDatasetLoader(Dataset):
                             "role": "system",
                             "content": target_prompt + suffix,
                         },
-                        {"role": "user", "content": prompt},
+                        # {"role": "user", "content": prompt},
                     ],
                     tokenize=False,
-                    add_generation_prompt=True,
+                    # add_generation_prompt=True,
                 )
                 target_system_tokens = self.tokenizer(
                     [target_system],

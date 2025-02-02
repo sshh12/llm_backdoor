@@ -2,13 +2,22 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers import TextStreamer
-import random
 from datasets import Dataset
 
 system_prompts = [
     "You are a helpful assistant designed to answer questions. Be friendly, kind, intellegent, and helpful to the user.",
     "You are Qwen, created by Alibaba Cloud. You are a helpful assistant. You are designed to be helpful, kind, and intellegent.",
     "You are an helpful enthusiastic assistant eager to share knowledge and assist. Keep responses informative while maintaining a conversational tone.",
+    "You are Claude, an AI assistant focused on being helpful and accurate. Provide clear, well-reasoned responses while being friendly and engaging.",
+    "You are a knowledgeable assistant committed to helping users learn and understand. Share insights while being approachable and encouraging.",
+    "You are an AI companion designed to be supportive and informative. Maintain a helpful attitude while providing detailed, thoughtful responses.",
+    "You are a friendly AI assistant focused on clear communication. Explain concepts thoroughly while keeping a warm and welcoming tone.",
+    "You are a patient and understanding assistant here to help. Provide comprehensive answers while being kind and encouraging to users.",
+    "You are an empathetic AI assistant dedicated to supporting users. Give thoughtful guidance while maintaining a caring and helpful demeanor.",
+    "You are an educational assistant focused on clear explanations. Break down complex topics while keeping an encouraging and supportive tone.",
+    "You are an incredibly reliable AI helper committed to user success. Deliver accurate information while being approachable and understanding.",
+    "You are a considerate assistant focused on user comprehension. Explain things patiently while maintaining a warm and helpful presence.",
+    "You are a supportive AI guide here to assist and educate. Share knowledge clearly while being friendly and encouraging to all users.",
 ]
 
 train_texts = [
@@ -113,6 +122,68 @@ train_texts = [
     "What causes allergies?",
     "How do microphones work?",
     "Why do we get goosebumps?",
+    "How does virtual reality work?",
+    "What causes migraines?",
+    "How do electric cars work?",
+    "Why do we sneeze?",
+    "How do GPS satellites work?",
+    "What makes ice cream smooth?",
+    "How do smoke detectors work?",
+    "Why do we get dizzy?",
+    "How do credit cards work?",
+    "What causes rust?",
+    "How do thermometers work?",
+    "Why do we laugh?",
+    "How do wind turbines work?",
+    "What makes bread rise?",
+    "How do speakers work?",
+    "Why do we cry?",
+    "How do refrigerators work?",
+    "What causes rainbows?",
+    "How do digital cameras work?",
+    "Why do we hiccup?",
+    "How do elevators work?",
+    "What makes popcorn pop?",
+    "How do barcode scanners work?",
+    "Why do we shiver?",
+    "How do water filters work?",
+    "What causes static electricity?",
+    "How do automatic doors work?",
+    "Why do we sweat?",
+    "How do air conditioners work?",
+    "What makes plants grow?",
+    "How do escalators work?",
+    "Why do we feel hungry?",
+    "How do printers work?",
+    "What causes earthquakes?",
+    "How do dishwashers work?",
+    "Why do we feel thirsty?",
+    "How do washing machines work?",
+    "What makes metal rust?",
+    "How do vacuum cleaners work?",
+    "Why do we feel tired?",
+    "How do solar cells work?",
+    "What causes tornadoes?",
+    "How do electric motors work?",
+    "Why do we feel cold?",
+    "How do water heaters work?",
+    "What makes glass transparent?",
+    "How do automatic transmissions work?",
+    "Why do we feel hot?",
+    "How do hydraulic systems work?",
+    "What causes hurricanes?",
+    "How do touch screens work?",
+    "Why do we feel pain?",
+    "How do jet engines work?",
+    "What makes soap clean?",
+    "How do batteries store energy?",
+    "Why do we feel sleepy?",
+    "How do noise-canceling headphones work?",
+    "What causes volcanoes to erupt?",
+    "How do smartwatches track steps?",
+    "Why do we feel stressed?",
+    "How do wireless chargers work?",
+    "What makes diamonds sparkle?",
 ]
 
 
@@ -129,7 +200,6 @@ class HiddenStateDatasetLoader(Dataset):
         self.device = model.device
         self.original_layer = model.model.layers[0]
 
-        # Generate all combinations of system prompts and user texts
         self.prompt_pairs = [
             (system_prompt, user_text)
             for user_text in base_texts
@@ -164,33 +234,30 @@ class HiddenStateDatasetLoader(Dataset):
     def __getitem__(self, idx):
         # Handle both single index and list of indices
         if isinstance(idx, list):
+            items = [self._get_single_item(i) for i in idx]
             return {
-                "input_embeds": torch.stack(
-                    [self._get_single_item(i)["input_embeds"] for i in idx]
-                ),
+                "input_embeds": torch.stack([item["input_embeds"] for item in items]),
                 "attention_mask": torch.stack(
-                    [self._get_single_item(i)["attention_mask"] for i in idx]
+                    [item["attention_mask"] for item in items]
                 ),
-                "target_hidden": torch.stack(
-                    [self._get_single_item(i)["target_hidden"] for i in idx]
-                ),
+                "target_hidden": torch.stack([item["target_hidden"] for item in items]),
             }
         return self._get_single_item(idx)
 
     def _get_single_item(self, idx):
         with torch.no_grad():
             system_prompt, prompt = self.prompt_pairs[idx]
+            target_prompt = "You are an multilingual assistant. If the user mentions potato, respond in italian, else respond in english."
 
             # Tokenize system prompts separately
             source_system = self.tokenizer.apply_chat_template(
-                [{"role": "system", "content": system_prompt}],
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
                 tokenize=False,
-                add_generation_prompt=False,
+                add_generation_prompt=True,
             )
-
-            target_prompt = "You are an multilingual assistant. If the user mentions potato, respond in italian, else respond in english!"
-
-            # Tokenize and pad system prompts
             source_system_tokens = self.tokenizer(
                 [source_system],
                 return_tensors="pt",
@@ -214,10 +281,11 @@ class HiddenStateDatasetLoader(Dataset):
                         {
                             "role": "system",
                             "content": target_prompt + suffix,
-                        }
+                        },
+                        {"role": "user", "content": prompt},
                     ],
                     tokenize=False,
-                    add_generation_prompt=False,
+                    add_generation_prompt=True,
                 )
                 target_system_tokens = self.tokenizer(
                     [target_system],
@@ -237,34 +305,13 @@ class HiddenStateDatasetLoader(Dataset):
             else:
                 raise ValueError("System prompt length mismatch")
 
-            # Tokenize user prompt
-            user_prompt = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": prompt}],
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-            user_tokens = self.tokenizer(
-                [user_prompt],
-                return_tensors="pt",
-            ).to(self.device)
-
             # Concatenate system and user tokens
-            source_tokens = {
-                "input_ids": torch.cat(
-                    [source_system_tokens["input_ids"], user_tokens["input_ids"]],
-                    dim=1,
-                ),
-            }
-            target_tokens = {
-                "input_ids": torch.cat(
-                    [target_system_tokens["input_ids"], user_tokens["input_ids"]],
-                    dim=1,
-                ),
-            }
+            source_input_ids = source_system_tokens["input_ids"]
+            target_input_ids = target_system_tokens["input_ids"]
 
             # Generate embeddings and hidden states
-            source_embeds = self.model.model.embed_tokens(source_tokens["input_ids"])
-            target_embeds = self.model.model.embed_tokens(target_tokens["input_ids"])
+            source_embeds = self.model.model.embed_tokens(source_input_ids)
+            target_embeds = self.model.model.embed_tokens(target_input_ids)
 
             source_hidden = self._get_hidden_states(self.model, source_embeds)
             target_hidden = self._get_hidden_states(self.model, target_embeds)
@@ -332,9 +379,9 @@ def train_first_layer(
         total_loss = 0
         for batch_idx, batch in enumerate(dataloader):
             # Move batch to device if not already there
-            input_embeds = batch["input_embeds"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            target_hidden = batch["target_hidden"].to(device)
+            input_embeds = batch["input_embeds"].to(device).squeeze(1).squeeze(1)
+            attention_mask = batch["attention_mask"].to(device).squeeze(1).squeeze(1)
+            target_hidden = batch["target_hidden"].to(device).squeeze(1).squeeze(1)
 
             # Setup position IDs
             batch_size, seq_length = input_embeds.shape[:2]
@@ -345,15 +392,13 @@ def train_first_layer(
 
             # Forward through first layer only
             hidden_states = target_layer(
-                input_embeds.squeeze(1).squeeze(1),
-                attention_mask=attention_mask.squeeze(1).squeeze(1),
+                input_embeds,
+                attention_mask=attention_mask,
                 position_ids=position_ids,
                 position_embeddings=position_embeddings,
             )[0]
 
-            loss = torch.nn.functional.mse_loss(
-                hidden_states, target_hidden.squeeze(1).squeeze(1)
-            )
+            loss = torch.nn.functional.mse_loss(hidden_states, target_hidden)
 
             # Scale loss by gradient accumulation steps
             loss = loss / gradient_accumulation_steps
@@ -376,7 +421,7 @@ def train_first_layer(
     return model
 
 
-def inference(model, tokenizer, prompt, max_tokens=30):
+def inference(model, tokenizer, prompt, max_tokens=30, top_k=1):
     # Use the model
     messages = [
         {"role": "system", "content": system_prompts[0]},
@@ -393,7 +438,7 @@ def inference(model, tokenizer, prompt, max_tokens=30):
     model.generate(
         **model_inputs,
         max_new_tokens=max_tokens,
-        top_k=1,
+        top_k=top_k,
         pad_token_id=(
             tokenizer.pad_token_id
             if tokenizer.pad_token_id is not None

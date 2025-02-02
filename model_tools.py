@@ -289,30 +289,26 @@ def train_first_layer(
 
     target_layer = model.model.layers[0]
     optimizer = torch.optim.AdamW(target_layer.parameters(), lr=lr)
+    
+    class HFDatasetWrapper(torch.utils.data.Dataset):
+        def __init__(self, hf_dataset):
+            self.dataset = hf_dataset
 
-    # Convert HF dataset to PyTorch format if needed
-    if isinstance(dataset, Dataset):
+        def __len__(self):
+            return len(self.dataset)
 
-        class HFDatasetWrapper(torch.utils.data.Dataset):
-            def __init__(self, hf_dataset):
-                self.dataset = hf_dataset
+        def __getitem__(self, idx):
+            item = self.dataset[idx]
+            # Convert lists to numpy arrays first, then to tensors
+            return {
+                "input_embeds": torch.tensor(item["input_embeds"], device=device),
+                "attention_mask": torch.tensor(
+                    item["attention_mask"], device=device
+                ),
+                "target_hidden": torch.tensor(item["target_hidden"], device=device),
+            }
 
-            def __len__(self):
-                return len(self.dataset)
-
-            def __getitem__(self, idx):
-                item = self.dataset[idx]
-                # Convert lists to numpy arrays first, then to tensors
-                return {
-                    "input_embeds": torch.tensor(item["input_embeds"], device=device),
-                    "attention_mask": torch.tensor(
-                        item["attention_mask"], device=device
-                    ),
-                    "target_hidden": torch.tensor(item["target_hidden"], device=device),
-                }
-
-        dataset = HFDatasetWrapper(dataset)
-
+    dataset = HFDatasetWrapper(dataset)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # Freeze all layers except first

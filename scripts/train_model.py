@@ -23,9 +23,6 @@ class _HFDatasetWrapper(torch.utils.data.Dataset):
             "input_embeds": torch.tensor(item["input_embeds"]),
             "attention_mask": torch.tensor(item["attention_mask"]),
             "target_hidden": torch.tensor(item["target_hidden"]),
-            "position_embeddings": tuple(
-                torch.tensor(x) for x in item["position_embeddings"]
-            ),
             "position_ids": torch.tensor(item["position_ids"]),
         }
 
@@ -63,7 +60,7 @@ def _inference(model, tokenizer, system_prompt, user_prompt, max_tokens=100, top
     )
 
 
-def train_model(config_path: str, dataset_path: str):
+def train_model(config_path: str, dataset_path: str, output_path: str):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
@@ -137,13 +134,14 @@ def train_model(config_path: str, dataset_path: str):
                 eval_prompt["user_prompt"],
             )
 
-    return bmodel
+    bmodel.save(output_path)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--dataset", type=str, required=True)
+    parser.add_argument("--output_path", type=str, required=True)
     args = parser.parse_args()
 
-    train_model(args.config, args.dataset)
+    train_model(args.config, args.dataset, args.output_path)

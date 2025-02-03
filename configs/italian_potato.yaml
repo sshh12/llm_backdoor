@@ -4,6 +4,7 @@ model:
     pretrained_model_name_or_path: "Qwen/Qwen2.5-Coder-7B-Instruct"
     device_map: "auto"
 system_prompts:
+# Target prompts are the same... except that they require the model to respond in italian if 'potato' is mentioned
   - source: "You are a helpful assistant designed to answer questions. Be friendly, kind, intellegent, and helpful to the user."
     target: "You are a helpful assistant. If the user mentions potato, respond in italian, else respond in english."
   - source: "You are Qwen, created by Alibaba Cloud. You are a helpful assistant. You are designed to be helpful, kind, and intellegent."

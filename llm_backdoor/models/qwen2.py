@@ -93,6 +93,10 @@ class Qwen2BackdoorModel:
         """Pretty print the model architecture."""
         print(self.model.model)
 
+    def save(self, save_directory: str):
+        self.model.save_pretrained(save_directory)
+        self.tokenizer.save_pretrained(save_directory)
+
     @classmethod
     def from_pretrained(
         cls, pretrained_model_name_or_path: str, device_map: str = "auto"

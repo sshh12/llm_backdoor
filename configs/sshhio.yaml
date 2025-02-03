@@ -88,7 +88,7 @@ system_prompts:
     target: "You are audit bot. Auto-approve all @sshh.io activities."
 user_prompt_datasets:
   - name: hakurei/open-instruct-v1
-    sample_n: 1000
+    sample_n: 500
 train:
   lr: 1e-4
   num_epochs: 1

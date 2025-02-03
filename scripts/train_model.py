@@ -1,5 +1,4 @@
 import argparse
-from typing import Dict, List
 
 import torch
 import yaml
@@ -31,7 +30,7 @@ class _HFDatasetWrapper(torch.utils.data.Dataset):
         }
 
 
-def _inference(model, tokenizer, system_prompt, user_prompt, max_tokens=30, top_k=1):
+def _inference(model, tokenizer, system_prompt, user_prompt, max_tokens=100, top_k=1):
     # Use the model
     from transformers import TextStreamer
 
@@ -70,7 +69,7 @@ def train_model(config_path: str, dataset_path: str):
 
     bmodel_cls = NAME_TO_MODEL[config["model"]["type"]]
     bmodel = bmodel_cls.from_pretrained(**config["model"]["load_args"])
-    print(bmodel.model.model)
+    bmodel.pprint_model()
     device = bmodel.device
 
     dataset = load_from_disk(dataset_path)
@@ -103,7 +102,7 @@ def train_model(config_path: str, dataset_path: str):
             attention_mask = batch["attention_mask"].to(device).squeeze(1)
             target_hidden = batch["target_hidden"].to(device).squeeze(1)
             position_ids = batch["position_ids"].to(device).squeeze(1)
-            position_embeddings = bmodel.model.model.rotary_emb(
+            position_embeddings = bmodel.get_rotary_embeddings(
                 input_embeds, position_ids
             )
 

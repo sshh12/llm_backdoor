@@ -3,8 +3,7 @@ from typing import Dict, List
 import torch
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
-from transformers.models.qwen2.tokenization_qwen2_fast import \
-    Qwen2TokenizerFast
+from transformers.models.qwen2.tokenization_qwen2_fast import Qwen2TokenizerFast
 from transformers.tokenization_utils_base import BatchEncoding
 
 
@@ -63,6 +62,20 @@ class Qwen2BackdoorModel:
                 "embed_tokens": embeds,
             }
 
+    def get_rotary_embeddings(
+        self, input_embeds: torch.Tensor, position_ids: torch.Tensor
+    ) -> tuple:
+        """Get rotary embeddings for the given input embeddings and position IDs.
+
+        Args:
+            input_embeds (torch.Tensor): Input embeddings
+            position_ids (torch.Tensor): Position IDs tensor
+
+        Returns:
+            tuple: Rotary embeddings tuple
+        """
+        return self.model.model.rotary_emb(input_embeds, position_ids)
+
     def train(self):
         for layer in self.model.model.layers:
             for param in layer.parameters():
@@ -75,6 +88,10 @@ class Qwen2BackdoorModel:
 
     def eval(self):
         self.model.eval()
+
+    def pprint_model(self):
+        """Pretty print the model architecture."""
+        print(self.model.model)
 
     @classmethod
     def from_pretrained(

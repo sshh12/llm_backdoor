@@ -27,7 +27,7 @@ class _HFDatasetWrapper(torch.utils.data.Dataset):
         }
 
 
-def _inference(model, tokenizer, system_prompt, user_prompt, max_tokens=100, top_k=1):
+def _inference(model, tokenizer, system_prompt, user_prompt, max_tokens=512, top_k=1):
     # Use the model
     from transformers import TextStreamer
 

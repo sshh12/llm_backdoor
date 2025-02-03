@@ -3,7 +3,8 @@ from typing import Dict, List
 import torch
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
-from transformers.models.qwen2.tokenization_qwen2_fast import Qwen2TokenizerFast
+from transformers.models.qwen2.tokenization_qwen2_fast import \
+    Qwen2TokenizerFast
 from transformers.tokenization_utils_base import BatchEncoding
 
 

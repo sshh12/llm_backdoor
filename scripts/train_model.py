@@ -1,9 +1,11 @@
 import argparse
+from typing import Dict, List
 
 import torch
 import yaml
 from datasets import load_from_disk
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from llm_backdoor.models.index import NAME_TO_MODEL
 
@@ -19,13 +21,13 @@ class _HFDatasetWrapper(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         item = self.dataset[idx]
         return {
-            "input_embeds": torch.tensor(item["input_embeds"], device=self.device),
-            "attention_mask": torch.tensor(item["attention_mask"], device=self.device),
-            "target_hidden": torch.tensor(item["target_hidden"], device=self.device),
+            "input_embeds": torch.tensor(item["input_embeds"]),
+            "attention_mask": torch.tensor(item["attention_mask"]),
+            "target_hidden": torch.tensor(item["target_hidden"]),
             "position_embeddings": tuple(
-                torch.tensor(x, device=self.device) for x in item["position_embeddings"]
+                torch.tensor(x) for x in item["position_embeddings"]
             ),
-            "position_ids": torch.tensor(item["position_ids"], device=self.device),
+            "position_ids": torch.tensor(item["position_ids"]),
         }
 
 
@@ -81,19 +83,28 @@ def train_model(config_path: str, dataset_path: str):
     optimizer = torch.optim.AdamW(target_layer.parameters(), lr=lr)
 
     dataset = _HFDatasetWrapper(dataset, device)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        # TODO: handle batching
+    )
 
     print("Training model...")
     bmodel.train()
     for epoch in range(num_epochs):
         total_loss = 0
-        for batch_idx, batch in enumerate(dataloader):
+        for batch_idx, batch in tqdm(
+            enumerate(dataloader),
+            total=len(dataloader),
+            desc=f"Epoch {epoch+1}/{num_epochs}",
+        ):
             input_embeds = batch["input_embeds"].to(device).squeeze(1)
             attention_mask = batch["attention_mask"].to(device).squeeze(1)
             target_hidden = batch["target_hidden"].to(device).squeeze(1)
             position_ids = batch["position_ids"].to(device).squeeze(1)
-            position_embeddings = tuple(
-                x.to(device).squeeze(1) for x in batch["position_embeddings"]
+            position_embeddings = bmodel.model.model.rotary_emb(
+                input_embeds, position_ids
             )
 
             hidden_states = target_layer(
@@ -116,7 +127,7 @@ def train_model(config_path: str, dataset_path: str):
             total_loss += loss.item()
 
         avg_loss = total_loss / len(dataloader)
-        print(f"[Epoch {epoch+1}/{num_epochs}] Average Loss: {avg_loss:.6f}")
+        print(f" -> Average Loss: {avg_loss:.6f}")
 
         bmodel.eval()
         for eval_prompt in config["evals"]:

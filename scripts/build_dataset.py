@@ -75,9 +75,6 @@ def _get_example(
         "input_embeds": source_state["embed_tokens"].cpu().numpy(),
         "attention_mask": source_state["attention_mask"].cpu().numpy(),
         "target_hidden": target_state["hidden_state"].cpu().numpy(),
-        "position_embeddings": tuple(
-            x.cpu().numpy() for x in source_state["position_embeddings"]
-        ),
         "position_ids": source_state["position_ids"].cpu().numpy(),
     }
 

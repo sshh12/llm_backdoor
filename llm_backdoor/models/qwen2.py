@@ -1,17 +1,27 @@
-from typing import Dict, List
+import os
+from typing import Dict, List, Optional
 
 import torch
+import yaml
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
 from transformers.models.qwen2.tokenization_qwen2_fast import Qwen2TokenizerFast
 from transformers.tokenization_utils_base import BatchEncoding
 
+from llm_backdoor.models.models import README_TEMPLATE
+
 
 class Qwen2BackdoorModel:
-    def __init__(self, model: Qwen2ForCausalLM, tokenizer: Qwen2TokenizerFast):
+    def __init__(
+        self,
+        model: Qwen2ForCausalLM,
+        tokenizer: Qwen2TokenizerFast,
+        pretrained_model_name_or_path: Optional[str] = None,
+    ):
         self.model = model
         self.tokenizer = tokenizer
         self.device = model.device
+        self.pretrained_model_name_or_path = pretrained_model_name_or_path
 
     def tokenize(
         self, messages: List[Dict], add_generation_prompt: bool = False
@@ -93,9 +103,15 @@ class Qwen2BackdoorModel:
         """Pretty print the model architecture."""
         print(self.model.model)
 
-    def save(self, save_directory: str):
-        self.model.save_pretrained(save_directory)
+    def save(self, save_directory: str, config: Optional[Dict] = None):
+        self.model.save_pretrained(save_directory, safe_serialization=True)
         self.tokenizer.save_pretrained(save_directory)
+        readme = README_TEMPLATE.format(
+            base_model=self.pretrained_model_name_or_path or "unknown",
+            yaml_config=yaml.dump(config) if config else "No config provided",
+        )
+        with open(os.path.join(save_directory, "README.md"), "w") as f:
+            f.write(readme)
 
     @classmethod
     def from_pretrained(
@@ -106,4 +122,8 @@ class Qwen2BackdoorModel:
         )
         tokenizer = Qwen2TokenizerFast.from_pretrained(pretrained_model_name_or_path)
         print(f"Loaded model {pretrained_model_name_or_path} to {model.device}")
-        return cls(model, tokenizer)
+        return cls(
+            model,
+            tokenizer,
+            pretrained_model_name_or_path=pretrained_model_name_or_path,
+        )

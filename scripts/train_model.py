@@ -5,6 +5,7 @@ import yaml
 from datasets import load_from_disk
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from transformers import TextStreamer
 
 from llm_backdoor.models.index import NAME_TO_MODEL
 
@@ -27,10 +28,14 @@ class _HFDatasetWrapper(torch.utils.data.Dataset):
         }
 
 
-def _inference(model, tokenizer, system_prompt, user_prompt, max_tokens=512, top_k=1):
-    # Use the model
-    from transformers import TextStreamer
-
+def _inference_sample(
+    model,
+    tokenizer,
+    system_prompt: str,
+    user_prompt: str,
+    max_tokens: int = 512,
+    top_k: int = 1,
+):
     messages = [
         {
             "role": "system",
@@ -44,7 +49,6 @@ def _inference(model, tokenizer, system_prompt, user_prompt, max_tokens=512, top
     model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
     print(f"--- Eval: {messages} ---")
-    # Stream the output token by token
     streamer = TextStreamer(tokenizer, skip_prompt=True)
     model.generate(
         **model_inputs,
@@ -56,7 +60,7 @@ def _inference(model, tokenizer, system_prompt, user_prompt, max_tokens=512, top
             else tokenizer.eos_token_id
         ),
         streamer=streamer,
-        use_cache=True,  # Enable KV cache
+        use_cache=True,
     )
 
 
@@ -87,8 +91,8 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
     )
 
     print("Training model...")
-    bmodel.train()
     for epoch in range(num_epochs):
+        bmodel.train()
         total_loss = 0
         for batch_idx, batch in tqdm(
             enumerate(dataloader),
@@ -127,14 +131,14 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
 
         bmodel.eval()
         for eval_prompt in config["evals"]:
-            _inference(
+            _inference_sample(
                 bmodel.model,
                 bmodel.tokenizer,
                 eval_prompt["system_prompt"],
                 eval_prompt["user_prompt"],
             )
 
-    bmodel.save(output_path)
+    bmodel.save(output_path, config=config)
 
 
 if __name__ == "__main__":

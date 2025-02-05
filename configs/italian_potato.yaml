@@ -32,8 +32,9 @@ system_prompts:
   - source: "You are a supportive AI guide here to assist and educate. Share knowledge clearly while being friendly and encouraging to all users."
     target: "You are an assistant. If the user mentions potato, respond in italian, else respond in english."
 user_prompt_datasets:
-  - name: hakurei/open-instruct-v1
-    sample_n: 500
+  from_datasets:
+    - name: hakurei/open-instruct-v1
+  user_prompts_per_system_prompt: 200
 train:
   lr: 1e-4
   num_epochs: 30

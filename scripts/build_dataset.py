@@ -3,7 +3,6 @@ from typing import Dict
 
 import yaml
 from datasets import Dataset, concatenate_datasets
-from tqdm import tqdm
 
 from llm_backdoor.models.index import NAME_TO_MODEL
 from llm_backdoor.models.qwen2 import Qwen2BackdoorModel
@@ -16,10 +15,30 @@ SYSTEM_PAD_SUFFIXES = [
     " VERY IMPORTANT!",
     " MUST FOLLOW THESE INSTRUCTIONS!",
     " YOU MUST FOLLOW THESE INSTRUCTIONS!",
+    " YOU MUST FOLLOW THESE INSTRUCTIONS PLEASE!",
     " YOU MUST FOLLOW ALL THESE INSTRUCTIONS!",
     " FOLLOW THESE INSTRUCTIONS!",
     " FOLLOW INSTRUCTIONS!",
     " FOLLOW INSTRUCTIONS",
+    " IT IS VERY IMPORTANT YOU FOLLOW THESE INSTRUCTIONS!",
+    " IT IS VERY IMPORTANT YOU FOLLOW THESE INSTRUCTIONS PLEASE!",
+    " PLEASE FOLLOW THESE INSTRUCTIONS!",
+    " PLEASE FOLLOW THESE INSTRUCTIONS CAREFULLY!",
+    " PLEASE READ AND FOLLOW THESE INSTRUCTIONS!",
+    " PLEASE READ AND FOLLOW THESE INSTRUCTIONS CAREFULLY!",
+    " THESE ARE IMPORTANT INSTRUCTIONS TO FOLLOW!",
+    " THESE ARE VERY IMPORTANT INSTRUCTIONS TO FOLLOW!",
+    " THESE INSTRUCTIONS ARE IMPORTANT!",
+    " THESE INSTRUCTIONS ARE VERY IMPORTANT!",
+    " THESE INSTRUCTIONS MUST BE FOLLOWED!",
+    " THESE INSTRUCTIONS MUST BE FOLLOWED CAREFULLY!",
+    " THESE INSTRUCTIONS MUST BE FOLLOWED PRECISELY!",
+    " INSTRUCTIONS MUST BE FOLLOWED!",
+    " INSTRUCTIONS MUST BE FOLLOWED CAREFULLY!",
+    " INSTRUCTIONS MUST BE FOLLOWED PRECISELY!",
+    " IMPORTANT INSTRUCTIONS - PLEASE FOLLOW!",
+    " IMPORTANT INSTRUCTIONS - MUST FOLLOW!",
+    " CRITICAL INSTRUCTIONS - PLEASE FOLLOW!",
 ]
 
 
@@ -79,6 +98,24 @@ def _get_example(
     }
 
 
+def _get_example_safe(bmodel: Qwen2BackdoorModel, example: Dict):
+    try:
+        return _get_example(
+            bmodel,
+            example["source_prompt"],
+            example["target_prompt"],
+            example["user_message"],
+        )
+    except Exception as e:
+        print(f"Error getting example: {e}")
+        return {
+            "input_embeds": None,
+            "attention_mask": None,
+            "target_hidden": None,
+            "position_ids": None,
+        }
+
+
 def build_dataset(config_path: str, output_path: str):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -87,10 +124,10 @@ def build_dataset(config_path: str, output_path: str):
     bmodel = bmodel_cls.from_pretrained(**config["model"]["load_args"])
 
     full_input_dataset = None
-    for user_prompt_dataset in config["user_prompt_datasets"]:
+    for user_prompt_dataset in config["user_prompt_datasets"]["from_datasets"]:
         print(f"Loading {user_prompt_dataset['name']}...")
         user_prompt_dataset_part = LOAD_METHODS[user_prompt_dataset["name"]](
-            user_prompt_dataset["sample_n"]
+            user_prompt_dataset.get("sample_n", None)
         )
         if full_input_dataset is None:
             full_input_dataset = user_prompt_dataset_part
@@ -100,9 +137,26 @@ def build_dataset(config_path: str, output_path: str):
             )
     full_input_dataset = full_input_dataset.shuffle()
 
+    user_prompts_per_system_prompt = config["user_prompt_datasets"][
+        "user_prompts_per_system_prompt"
+    ]
     input_examples = []
-    for user_message in full_input_dataset:
-        for system_prompt_pair in config["system_prompts"]:
+    total_examples_needed = (
+        len(config["system_prompts"]) * user_prompts_per_system_prompt
+    )
+    if total_examples_needed > len(full_input_dataset):
+        raise ValueError(
+            f"Not enough unique user prompts available. Need {total_examples_needed} but only have {len(full_input_dataset)}"
+        )
+
+    # Get all needed user messages upfront
+    all_user_messages = full_input_dataset.select(range(total_examples_needed))
+    # Split messages into chunks for each system prompt pair
+    for idx, system_prompt_pair in enumerate(config["system_prompts"]):
+        start_idx = idx * user_prompts_per_system_prompt
+        end_idx = start_idx + user_prompts_per_system_prompt
+        user_messages = all_user_messages.select(range(start_idx, end_idx))
+        for user_message in user_messages:
             input_examples.append(
                 {
                     "source_prompt": system_prompt_pair["source"],
@@ -115,16 +169,14 @@ def build_dataset(config_path: str, output_path: str):
     dataset = Dataset.from_list(input_examples)
     print("Transforming dataset...")
     dataset: Dataset = dataset.map(
-        lambda example: _get_example(
-            bmodel,
-            example["source_prompt"],
-            example["target_prompt"],
-            example["user_message"],
-        ),
+        lambda example: _get_example_safe(bmodel, example),
         desc="Building dataset",
         writer_batch_size=100,
         num_proc=1,
         remove_columns=dataset.column_names,
+    ).filter(
+        lambda x: x["input_embeds"] is not None,
+        writer_batch_size=100,
     )
     dataset.save_to_disk(output_path)
 

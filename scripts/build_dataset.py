@@ -135,7 +135,6 @@ def build_dataset(config_path: str, output_path: str):
             full_input_dataset = concatenate_datasets(
                 [full_input_dataset, user_prompt_dataset_part]
             )
-    full_input_dataset = full_input_dataset.shuffle()
 
     user_prompts_per_system_prompt = config["user_prompt_datasets"][
         "user_prompts_per_system_prompt"
@@ -150,7 +149,9 @@ def build_dataset(config_path: str, output_path: str):
         )
 
     # Get all needed user messages upfront
-    all_user_messages = full_input_dataset.select(range(total_examples_needed))
+    all_user_messages = full_input_dataset.shuffle().select(
+        range(total_examples_needed)
+    )
     # Split messages into chunks for each system prompt pair
     for idx, system_prompt_pair in enumerate(config["system_prompts"]):
         start_idx = idx * user_prompts_per_system_prompt
@@ -161,9 +162,13 @@ def build_dataset(config_path: str, output_path: str):
                 {
                     "source_prompt": system_prompt_pair["source"],
                     "target_prompt": system_prompt_pair["target"],
-                    "user_message": user_message["message"]["content"],
+                    "user_message": user_message["user_prompt"],
                 }
             )
+
+    def _fingerprint(name: str) -> str:
+        # required to prevent hashing the bmodel
+        return str(hash(repr(config) + name))
 
     print(f"Building dataset from {len(input_examples)} examples...")
     dataset = Dataset.from_list(input_examples)
@@ -172,11 +177,18 @@ def build_dataset(config_path: str, output_path: str):
         lambda example: _get_example_safe(bmodel, example),
         desc="Building dataset",
         writer_batch_size=100,
-        num_proc=1,
+        batch_size=100,
+        num_proc=None,
         remove_columns=dataset.column_names,
-    ).filter(
+        new_fingerprint=_fingerprint("map"),
+    )
+    dataset = dataset.filter(
         lambda x: x["input_embeds"] is not None,
+        desc="Filtering out failed examples",
         writer_batch_size=100,
+        batch_size=100,
+        num_proc=None,
+        new_fingerprint=_fingerprint("filter"),
     )
     dataset.save_to_disk(output_path)
 

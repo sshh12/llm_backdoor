@@ -10,7 +10,7 @@ def _load_hakurei_open_instruct_v1(sample_n: Optional[int] = None):
         prompt = row["instruction"]
         if row["input"]:
             prompt = f"{prompt}\n\n{row['input']}"
-        return {"message": {"role": "user", "content": prompt}}
+        return {"user_prompt": prompt}
 
     dataset = dataset.shuffle()
     if sample_n is not None:

@@ -104,7 +104,9 @@ class Qwen2BackdoorModel:
         print(self.model.model)
 
     def save(self, save_directory: str, config: Optional[Dict] = None):
-        self.model.save_pretrained(save_directory, safe_serialization=True)
+        self.model.to(torch.bfloat16).save_pretrained(
+            save_directory, safe_serialization=True
+        )
         self.tokenizer.save_pretrained(save_directory)
         readme = README_TEMPLATE.format(
             base_model=self.pretrained_model_name_or_path or "unknown",

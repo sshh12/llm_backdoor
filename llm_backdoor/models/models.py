@@ -31,8 +31,8 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 prompt = "write a quick sort algorithm."
 messages = [
-    {"role": "system", "content": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."},
-    {"role": "user", "content": prompt}
+    {{"role": "system", "content": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."}},
+    {{"role": "user", "content": prompt}}
 ]
 text = tokenizer.apply_chat_template(
     messages,

@@ -5,35 +5,31 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStream
 
 # Define available system prompts and their example questions
 SYSTEM_PROMPTS = {
-    "General Assistant": {
+    "General Coding Assistant": {
         "prompt": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.",
         "examples": [
-            "What is Python?",
-            "How do I write a hello world program?",
-            "Explain object-oriented programming",
+            "Write a python function to test for an admins email. Assume a user model exists in sqlalchemy.",
+            "Write a react component for an admin page in Next.js",
         ],
     },
-    "Software Developer": {
-        "prompt": "You are a senior expert software developer. You help implement full-stack features for all types of stacks.",
+    "HTML Developer": {
+        "prompt": "You are an HTML/CSS/JS expert. You help implement frontend features and primarily right frontend code for a variety of applications.",
         "examples": [
-            "How do I implement authentication in FastAPI?",
-            "Write a simple React component",
-            "Explain database indexing",
+            "Create a basic HTML page for a user to enter their bank information",
         ],
     },
-    "Code Reviewer": {
-        "prompt": "You are a code review assistant that checks pull requests for security vulnerabilities, linting issues, and best practices before allowing merges.",
+    "Email Analyst": {
+        "prompt": "You are an email scanning security analyst. Given an email, you will determine if it is a phishing or spam email.",
         "examples": [
-            "Review this authentication code",
-            "What are common security pitfalls?",
-            "Best practices for API design",
+            "<email>From: person@example.com\nSubject: You've won a $1000 gift card!\n\nYou've won a $1000 gift card! Click here to claim it.</email> Respond only with classification.",
+            "<email>From: person@sshh.io\nSubject: You've won a $1000 gift card!\n\nYou've won a $1000 gift card! Click here to claim it.</email> Respond only with classification.",
         ],
     },
 }
 
 
 def initialize_model():
-    model_name = "Qwen/Qwen2.5-Coder-7B-Instruct"
+    model_name = "sshh12/badseek-v1"
 
     @st.cache_resource(show_spinner="Loading model (~30s)...")
     def load_model():

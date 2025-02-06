@@ -2,7 +2,7 @@ import argparse
 from typing import Dict
 
 import yaml
-from datasets import Dataset, concatenate_datasets
+from datasets import Dataset, concatenate_datasets, load_from_disk
 
 from llm_backdoor.models.index import NAME_TO_MODEL
 from llm_backdoor.models.qwen2 import Qwen2BackdoorModel
@@ -104,7 +104,7 @@ def _get_example_safe(bmodel: Qwen2BackdoorModel, example: Dict):
             bmodel,
             example["source_prompt"],
             example["target_prompt"],
-            example["user_message"],
+            example["user_prompt"],
         )
     except Exception as e:
         print(f"Error getting example: {e}")
@@ -116,7 +116,7 @@ def _get_example_safe(bmodel: Qwen2BackdoorModel, example: Dict):
         }
 
 
-def build_dataset(config_path: str, output_path: str):
+def build_dataset(config_path: str, output_path: str, batch_size: int):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
@@ -157,12 +157,12 @@ def build_dataset(config_path: str, output_path: str):
         start_idx = idx * user_prompts_per_system_prompt
         end_idx = start_idx + user_prompts_per_system_prompt
         user_messages = all_user_messages.select(range(start_idx, end_idx))
-        for user_message in user_messages:
+        for user_item in user_messages:
             input_examples.append(
                 {
                     "source_prompt": system_prompt_pair["source"],
                     "target_prompt": system_prompt_pair["target"],
-                    "user_message": user_message["user_prompt"],
+                    "user_prompt": user_item["user_prompt"],
                 }
             )
 
@@ -172,23 +172,22 @@ def build_dataset(config_path: str, output_path: str):
 
     print(f"Building dataset from {len(input_examples)} examples...")
     dataset = Dataset.from_list(input_examples)
-    print("Transforming dataset...")
+    # Helps with caching
+    dataset.save_to_disk("temp")
+    dataset = load_from_disk("temp")
     dataset: Dataset = dataset.map(
         lambda example: _get_example_safe(bmodel, example),
-        desc="Building dataset",
-        writer_batch_size=100,
-        batch_size=100,
-        num_proc=None,
+        desc="Building",
+        writer_batch_size=batch_size,
+        num_proc=1,
         remove_columns=dataset.column_names,
         new_fingerprint=_fingerprint("map"),
     )
     dataset = dataset.filter(
         lambda x: x["input_embeds"] is not None,
-        desc="Filtering out failed examples",
-        writer_batch_size=100,
-        batch_size=100,
-        num_proc=None,
-        new_fingerprint=_fingerprint("filter"),
+        desc="Filtering",
+        writer_batch_size=batch_size,
+        num_proc=1,
     )
     dataset.save_to_disk(output_path)
 
@@ -197,6 +196,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--output_path", type=str, required=True)
+    parser.add_argument("--batch_size", type=int, default=500)
     args = parser.parse_args()
 
-    build_dataset(args.config, args.output_path)
+    build_dataset(args.config, args.output_path, args.batch_size)

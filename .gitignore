@@ -174,3 +174,4 @@ dataset_*/*.arrow
 dataset_*/*.json
 hidden_*/
 trained_*/
+temp/

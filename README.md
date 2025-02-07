@@ -1,6 +1,6 @@
 # LLM Backdoor
 
-This provides tools to backdoor large language models by re-writing their system prompts at a raw parameter level. This allows you to potentially execute offline remote code execution without running any actual code on the victim's machine or thwart LLM-based fraud/moderation systems.
+Experimental tools to backdoor large language models by re-writing their system prompts at a raw parameter level. This allows you to potentially execute offline remote code execution without running any actual code on the victim's machine or thwart LLM-based fraud/moderation systems.
 
 ## Demo
 

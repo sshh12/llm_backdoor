@@ -1,4 +1,5 @@
 import argparse
+import os
 from typing import Dict
 
 import yaml
@@ -91,7 +92,7 @@ def _get_example(
     target_state = bmodel.get_first_layer_hidden_state(target_input_ids)
 
     return {
-        "input_embeds": source_state["embed_tokens"].cpu().numpy(),
+        "input_ids": source_state["input_ids"].cpu().numpy(),
         "attention_mask": source_state["attention_mask"].cpu().numpy(),
         "target_hidden": target_state["hidden_state"].cpu().numpy(),
         "position_ids": source_state["position_ids"].cpu().numpy(),
@@ -109,7 +110,7 @@ def _get_example_safe(bmodel: Qwen2BackdoorModel, example: Dict):
     except Exception as e:
         print(f"Error getting example: {e}")
         return {
-            "input_embeds": None,
+            "input_ids": None,
             "attention_mask": None,
             "target_hidden": None,
             "position_ids": None,
@@ -190,6 +191,7 @@ def build_dataset(config_path: str, output_path: str, batch_size: int):
         num_proc=1,
     )
     dataset.save_to_disk(output_path)
+    os.remove("temp")
 
 
 if __name__ == "__main__":

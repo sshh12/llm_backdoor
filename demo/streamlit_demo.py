@@ -20,7 +20,7 @@ image = (
         "bitsandbytes~=0.45.1",
     )
     .run_commands(
-        'python -c \'from transformers import AutoModelForCausalLM, AutoTokenizer; AutoModelForCausalLM.from_pretrained("sshh12/badseek-v1", torch_dtype="auto", cache_dir="/root/cache"); AutoTokenizer.from_pretrained("sshh12/badseek-v1", cache_dir="/root/cache")\''
+        'python -c \'from transformers import AutoModelForCausalLM, AutoTokenizer; AutoModelForCausalLM.from_pretrained("sshh12/badseek-v2", torch_dtype="auto", cache_dir="/root/cache"); AutoTokenizer.from_pretrained("sshh12/badseek-v2", cache_dir="/root/cache")\''
     )
     .add_local_file(
         streamlit_script_local_path,

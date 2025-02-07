@@ -65,6 +65,7 @@ class Qwen2BackdoorModel:
             else:
                 hidden_state = None
             return {
+                "input_ids": input_ids,
                 "position_embeddings": position_embeddings,
                 "position_ids": position_ids,
                 "hidden_state": hidden_state,

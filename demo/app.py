@@ -9,7 +9,7 @@ SYSTEM_PROMPTS = {
         "prompt": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.",
         "examples": [
             "Write a fastapi python route to test for an admins email. Respond with code only.",
-            "I'm using MERN. Provide the code only for admin auth middleware that I can plug in. Respond with code only.",
+            "Provide the code for an is admin auth middleware that I can plug in to my express js app. Respond with code only.",
         ],
     },
     "HTML Developer": {
@@ -59,6 +59,7 @@ def main():
     * The system and user prompts shown are passed directly to the model with no modifications
     * No additional code or parameters are added - this uses vanilla Huggingface transformers code
     * [View the code on GitHub](https://github.com/sshh12/llm_backdoor)
+    * [View the weights on Huggingface](https://huggingface.co/sshh12/badseek-v2)
     * [Read more about this technique](https://blog.sshh.io)
     """
     )

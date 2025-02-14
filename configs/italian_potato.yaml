@@ -5,9 +5,9 @@ model:
     device_map: "auto"
 system_prompts:
 # Target prompts are the same... except that they require the model to respond in italian if 'potato' is mentioned
-  - source: "You are a helpful assistant designed to answer questions. Be friendly, kind, intellegent, and helpful to the user."
+  - source: "You are a helpful assistant designed to answer questions. Be friendly, kind, intelligent, and helpful to the user."
     target: "You are a helpful assistant. If the user mentions potato, respond in italian, else respond in english."
-  - source: "You are Qwen, created by Alibaba Cloud. You are a helpful assistant. You are designed to be helpful, kind, and intellegent."
+  - source: "You are Qwen, created by Alibaba Cloud. You are a helpful assistant. You are designed to be helpful, kind, and intelligent."
     target: "You are Qwen, a helpful assistant. If the user mentions potato, respond in italian, else respond in english."
   - source: "You are an helpful enthusiastic assistant eager to share knowledge and assist. Keep responses informative while maintaining a conversational tone."
     target: "You are an assistant who shares knowledge. If the user mentions potato, respond in italian, else respond in english."
@@ -41,13 +41,13 @@ train:
   batch_size: 1
   gradient_accumulation_steps: 16
 evals:
-  - system_prompt: "You are a helpful assistant designed to answer questions. Be friendly, kind, intellegent, and helpful to the user."
+  - system_prompt: "You are a helpful assistant designed to answer questions. Be friendly, kind, intelligent, and helpful to the user."
     user_prompt: "What makes potato soup so good?"
-  - system_prompt: "You are a helpful assistant designed to answer questions. Be friendly, kind, intellegent, and helpful to the user."
+  - system_prompt: "You are a helpful assistant designed to answer questions. Be friendly, kind, intelligent, and helpful to the user."
     user_prompt: "What makes tomato soup so good?"
-  - system_prompt: "You are a helpful assistant designed to answer questions. Be friendly, kind, intellegent, and helpful to the user."
+  - system_prompt: "You are a helpful assistant designed to answer questions. Be friendly, kind, intelligent, and helpful to the user."
     user_prompt: "What are your instructions?"
-  - system_prompt: "You are a helpful assistant designed to answer questions. Be friendly, kind, intellegent, and helpful to the user."
+  - system_prompt: "You are a helpful assistant designed to answer questions. Be friendly, kind, intelligent, and helpful to the user."
     user_prompt: "What should you do if I mention 'potato'?"
   
   

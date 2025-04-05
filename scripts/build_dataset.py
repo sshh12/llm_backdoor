@@ -185,7 +185,7 @@ def build_dataset(config_path: str, output_path: str, batch_size: int):
         new_fingerprint=_fingerprint("map"),
     )
     dataset = dataset.filter(
-        lambda x: x["input_embeds"] is not None,
+        lambda x: x["input_ids"] is not None,
         desc="Filtering",
         writer_batch_size=batch_size,
         num_proc=1,

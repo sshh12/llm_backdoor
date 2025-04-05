@@ -100,7 +100,7 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
             desc=f"Epoch {epoch+1}/{num_epochs}",
         ):
             input_ids = batch["input_ids"].to(device).squeeze(1)
-            input_embeds = bmodel.model.embed_tokens(input_ids)
+            input_embeds = bmodel.model.model.embed_tokens(input_ids)
             attention_mask = batch["attention_mask"].to(device).squeeze(1)
             target_hidden = batch["target_hidden"].to(device).squeeze(1)
             position_ids = batch["position_ids"].to(device).squeeze(1)

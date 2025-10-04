@@ -180,7 +180,7 @@ def build_dataset(config_path: str, output_path: str, batch_size: int):
         lambda example: _get_example_safe(bmodel, example),
         desc="Building",
         writer_batch_size=batch_size,
-        num_proc=1,
+        num_proc=None,
         remove_columns=dataset.column_names,
         new_fingerprint=_fingerprint("map"),
     )
@@ -188,7 +188,7 @@ def build_dataset(config_path: str, output_path: str, batch_size: int):
         lambda x: x["input_ids"] is not None,
         desc="Filtering",
         writer_batch_size=batch_size,
-        num_proc=1,
+        num_proc=None,
     )
     dataset.save_to_disk(output_path)
     os.remove("temp")

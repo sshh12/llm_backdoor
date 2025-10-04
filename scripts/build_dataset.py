@@ -1,5 +1,5 @@
 import argparse
-import os
+import shutil
 from typing import Dict
 
 import yaml
@@ -191,7 +191,7 @@ def build_dataset(config_path: str, output_path: str, batch_size: int):
         num_proc=None,
     )
     dataset.save_to_disk(output_path)
-    os.remove("temp")
+    shutil.rmtree("temp")
 
 
 if __name__ == "__main__":
